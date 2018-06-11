@@ -1,0 +1,61 @@
+name: $(Date:yyyy).$(Date:MM).$(Date:dd)$(Rev:.rr)
+
+steps:
+- task: DotNetCoreCLI@2
+  displayName: Build Release
+  inputs:
+    projects: '**/*.csproj'
+    arguments: '--configuration Release'
+  condition: and(succeeded(), eq(variables['Build.SourceBranchName'], 'master'))
+
+- task: DotNetCoreCLI@2
+  displayName: Build Debug
+  inputs:
+    projects: '**/*.csproj'
+    arguments: '--configuration Debug'
+  condition: and(succeeded(), ne(variables['Build.SourceBranchName'], 'master'))
+
+- task: DotNetCoreCLI@2
+  displayName: Test Release
+  inputs:
+    command: test
+    projects: '$(Parameters.TestProjects)'
+    arguments: '--configuration Release'
+    workingDirectory: .
+  condition: and(succeeded(), eq(variables['Build.SourceBranchName'], 'master'))
+
+- task: DotNetCoreCLI@2
+  displayName: Test Debug
+  inputs:
+    command: test
+    projects: '$(Parameters.TestProjects)'
+    arguments: '--configuration Debug'
+    workingDirectory: .
+  condition: and(succeeded(), ne(variables['Build.SourceBranchName'], 'master'))
+
+- task: DotNetCoreCLI@2
+  displayName: Pack Release
+  inputs:
+    command: pack
+    packagesToPack: '**/*.csproj;!**/.Tests/*.csproj'
+    versioningScheme: byBuildNumber
+    verbosityPack: Minimal
+  condition: and(succeeded(), eq(variables['Build.SourceBranchName'], 'master'))
+
+- task: DotNetCoreCLI@2
+  displayName: Pack TypeMergerCore Prerelease
+  inputs:
+    command: custom
+    custom: pack
+    arguments: 'TypeMergerCore/TypeMergerCore.csproj --output $(Build.ArtifactStagingDirectory) /p:Configuration=Debug /p:PackageVersion=$(Build.BuildNumber)-PR$(System.PullRequest.PullRequestNumber)'
+    versioningScheme: byBuildNumber
+    verbosityPack: Minimal
+  condition: and(succeeded(), ne(variables['Build.SourceBranchName'], 'master'))
+
+- task: DotNetCoreCLI@2
+  displayName: Nuget Push
+  inputs:
+    command: custom
+    custom: nuget
+    arguments: 'push $(Build.ArtifactStagingDirectory)/*.nupkg -s $(NugetServer) -k $(NugetApiKey)'
+
